@@ -1,0 +1,455 @@
+﻿@page "/"
+
+<PageTitle>Home</PageTitle>
+
+<MudNumericField @bind-Value="n" Label="Value of n" Variant="Variant.Outlined" Min="2" Max="10" />
+<MudNumericField @bind-Value="m" Label="Value of m" Variant="Variant.Outlined" Min="2" Max="10" />
+<MudNumericField @bind-Value="DelayBetweenSteps" Label="Delay between steps in ms" Variant="Variant.Outlined" Min="0" Max="1000000000" />
+@if (result > -1 && !AlgorithmIsRunning)
+{
+    <MudGrid>
+        <MudItem xs="6">
+            <MudText Typo="Typo.subtitle1" Style="margin-top: 20px; margin-bottom: 20px;">Result: @result</MudText>
+        </MudItem>
+        <MudItem xs="6">
+            @if (curCell == (0, m))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => MarkPrevCells(0, m)" Style="margin-top: 20px">Hide last step</MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => MarkPrevCells(0, m)" Style="margin-top: 20px">Show last step</MudButton>
+            }
+        </MudItem>
+    </MudGrid>
+    @*
+    <MudTextField @bind-Value="result" Label="Result" Variant="Variant.Outlined" ReadOnly="true"></MudTextField>
+*@
+}
+
+@if (!AlgorithmIsRunning)
+{
+<MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="@(()=>CalculateDP2())" Style="margin-top: 20px">Calculate with steps</MudButton>
+<MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="@(async () =>
+                                                                                      {
+                                                                                          SkipToTheEnd = true;
+                                                                                          await CalculateDP2();
+                                                                                      })" Style="margin-top: 20px; margin-left: 20px">
+    Calculate without steps
+</MudButton>
+<MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="@(async () =>
+                                                                                      {
+                                                                                          MoveOneStepForward = true;
+                                                                                          Pause = false;
+                                                                                          await CalculateDP2();
+                                                                                      })" Style="margin-top: 20px; margin-left: 20px">
+    Move one step forward
+</MudButton>
+
+    
+}
+@if (AlgorithmIsRunning)
+{
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="@(() =>
+                                                                                          {
+                                                                                              SkipToTheEnd = true;
+                                                                                              Pause = false;
+                                                                                          })" Style="margin-top: 20px">
+        Skip to the end
+    </MudButton>
+    if (Pause && !SkipToTheEnd)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="@(() => { Pause = !Pause && !SkipToTheEnd;})" Style="margin-top: 20px; margin-left: 20px">Continue</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="@(() =>
+                                                                                              {
+                                                                                                  MoveOneStepForward = true;
+                                                                                                  Pause = false;
+                                                                                              })" Style="margin-top: 20px; margin-left: 20px">
+            Move one step forward
+        </MudButton>
+    }
+    else
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="@(() => { Pause = !Pause && !SkipToTheEnd;})" Style="margin-top: 20px; margin-left: 20px">Pause</MudButton>
+    }
+}
+
+<MudTable Items="answer?.Select((value, i) => (value, i))" Height="600px" Breakpoint="Breakpoint.Sm" HorizontalScrollbar="true" Style="margin-top: 20px">
+    <HeaderContent>
+        <MudTh>Profile</MudTh>
+        @foreach (var columnNumber in Enumerable.Range(1, m))
+        {
+            <MudTh>Column @columnNumber</MudTh>
+        }
+    </HeaderContent>
+
+    <RowTemplate>
+        <MudTd DataLabel="Column">
+            <MudAvatarGroup Max="@n" Spacing="0" MaxColor="Color.Primary">
+                @foreach (var c in GetBinaryRepresentation(context.i))
+                {
+                    if (c == '0')
+                    {
+                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: white; color: white;")"></MudAvatar>
+                    }
+                    else
+                    {
+                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: black")"></MudAvatar>
+                    }
+                }
+            </MudAvatarGroup>
+            @*
+            @GetBinaryRepresentation(context.i)
+        *@
+        </MudTd>
+        @foreach (var tuple in context.value?.Select((value, j) => (value, j)) ?? Enumerable.Empty<(long, int)>())
+        {
+            @if (curCell == (context.i, tuple.j))
+            {
+                <MudTd DataLabel="Column" Style="background-color: darkred">
+                    <MudButton Variant="Variant.Text" OnClick="() => MarkPrevCells(context.i, tuple.j)">
+                        @tuple.value
+                    </MudButton>
+                </MudTd>
+            }
+            else if (prevCells.Contains((context.i, tuple.j)))
+            {
+                <MudTd DataLabel="Column" Style="background-color: darkgreen">
+                    <MudTooltip>
+                        <ChildContent>
+                            <MudButton Variant="Variant.Text" OnClick="() => MarkPrevCells(context.i, tuple.j)">
+                                @tuple.value
+                            </MudButton>
+                        </ChildContent>
+                        <TooltipContent>
+                            <MudAvatarGroup Max="@n" Spacing="0" MaxColor="Color.Primary">
+                                @foreach (var c in GetBinaryRepresentation(context.i))
+                                {
+                                    if (c == '0')
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: white; color: white;")"></MudAvatar>
+                                    }
+                                    else
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: black")"></MudAvatar>
+                                    }
+                                }
+                            </MudAvatarGroup>
+                            <MudAvatarGroup Max="@n" Spacing="0" MaxColor="Color.Primary">
+                                @foreach (var c in GetBinaryRepresentation(curCell.i))
+                                {
+                                    if (c == '0')
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: white; color: white;")"></MudAvatar>
+                                    }
+                                    else
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: black")"></MudAvatar>
+                                    }
+                                }
+                            </MudAvatarGroup>
+                            <MudAvatarGroup Max="@n" Spacing="0" MaxColor="Color.Primary" Style="margin-top: 20px">
+                                @foreach (var c in GetTransitionBetweenProfiles(context.i, curCell.i))
+                                {
+                                    if (c == '1')
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: black; color: black;")"></MudAvatar>
+                                    }
+                                    else if (c == '2')
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: green; border-bottom: none;")"></MudAvatar>
+                                    } else if (c == '3')
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: green; border-right: none;")"></MudAvatar>
+                                    }
+                                    else
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: green; border-left: none;")"></MudAvatar>
+                                    }
+                                }
+                            </MudAvatarGroup>
+                            <MudAvatarGroup Max="@n" Spacing="0" MaxColor="Color.Primary">
+                                @foreach (var c in GetBinaryRepresentation(curCell.i))
+                                {
+                                    if (c == '0')
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: white; color: white;")"></MudAvatar>
+                                    }
+                                    else
+                                    {
+                                        <MudAvatar Square="true" Style="@($"height:20px; width:20px; font-size:2rem; background-color: green; border-top: none;")"></MudAvatar>
+                                    }
+                                }
+                            </MudAvatarGroup>
+
+
+
+                        </TooltipContent>
+                    </MudTooltip>
+                </MudTd>
+            }
+            else
+            {
+                <MudTd DataLabel="Column">
+                    <MudButton Variant="Variant.Text" OnClick="() => MarkPrevCells(context.i, tuple.j)">
+                        @tuple.value
+                    </MudButton>
+                </MudTd>
+            }
+        }
+    </RowTemplate>
+</MudTable>
+@code {
+    int n;
+    int m;
+    bool[][] possible;
+    long[][] answer;
+    long result = -1;
+    (int i, int j) curCell = (-1, -1);
+    List<(int i, int j)> prevCells = new();
+    bool AlgorithmIsRunning = false;
+    bool SkipToTheEnd = false;
+    bool MoveOneStepForward = false;
+    int DelayBetweenSteps = 1000;
+    bool Pause = false;
+
+
+    public async Task CalculateDP2()
+    {
+        prevCells.Clear();
+        curCell = (-1, -1);
+        AlgorithmIsRunning = true;
+        possible = new bool[1 << n][];
+        answer = new long[1 << n][];
+        for (int i = 0; i < (1 << n); i++)
+        {
+            answer[i] = new long[m];
+            possible[i] = new bool[1 << n];
+            for (int j = 0; j < (1 << n); j++)
+            {
+                possible[i][j] = IsProfileTransitionPossible2(i, j);
+            }
+        }
+
+
+        answer[0][0] = 1;
+        for (int i = 1; i < m; i++)
+        {
+            for (int j = 0; j < (1 << n); j++)
+            {
+                if (!SkipToTheEnd)
+                {
+                    curCell = (j, i);
+                }
+                for (int k = 0; k < (1 << n); k++)
+                {
+                    //possible[k][j] = IsProfileTransitionPossible(k, j);
+                    if (possible[k][j])
+                    {
+                        if (!SkipToTheEnd)
+                        {
+                            prevCells.Add((k, i - 1));
+                        }
+                        answer[j][i] += answer[k][i - 1];
+                    }
+                }
+
+                StateHasChanged();
+                if (MoveOneStepForward)
+                {
+                    Pause = true;
+                    MoveOneStepForward = false;
+                    StateHasChanged();
+                }
+
+                while (Pause)
+                {
+                    await Task.Delay(500);
+                }
+                if (!SkipToTheEnd && !MoveOneStepForward)
+                {
+                    await Task.Delay(DelayBetweenSteps);
+                }
+
+                prevCells.Clear();
+                curCell = (-1, -1);
+            }
+            StateHasChanged();
+        }
+        result = 0;
+        for (int i = 0; i < (1 << n); i++)
+        {
+            if (IsProfileFinal(i))
+            {
+                result += answer[i][m - 1];
+            }
+        }
+
+        AlgorithmIsRunning = false;
+        SkipToTheEnd = false;
+    }
+
+
+    public bool IsProfileTransitionPossible(int a, int b)
+    {
+        int numberOfEmptyRows = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (((1 << i) & a) != 0)
+            {
+                if (numberOfEmptyRows % 2 == 1)
+                {
+                    bool transitionPossible = false;
+                    for (int j = 1; j <= numberOfEmptyRows; j += 2)
+                    {
+                        transitionPossible = transitionPossible || ((1 << (i - j)) & b) == 1;
+                    }
+
+                    if (!transitionPossible)
+                    {
+                        return false;
+                    }
+
+                }
+
+                numberOfEmptyRows = 0;
+
+            }
+            else
+            {
+                numberOfEmptyRows++;
+            }
+            
+        }
+        if (numberOfEmptyRows % 2 == 1)
+        {
+            bool transitionPossible = false;
+            for (int j = 1; j <= numberOfEmptyRows; j += 2)
+            {
+                transitionPossible = transitionPossible || ((1 << (n - j)) & b) == 1;
+            }
+
+            if (!transitionPossible)
+            {
+                return false;
+            }
+
+        }
+
+
+        return true;
+    }
+
+    public bool IsProfileTransitionPossible2(int a, int b)
+    {
+        for (int i = 0; i < n; i++)
+        {
+            if (((1 << i) & a) != 0 && ((1 << i) & b) != 0)
+            {
+                return false;
+            }
+            if (((1 << i) & a) == 0 && ((1 << i) & b) == 0)
+            {
+                if ((i == n - 1 || ((1 << (i + 1)) & a) != 0) || ((1 << (i + 1)) & b) != 0) 
+                {
+                    return false;
+                }
+
+                i++;
+            }
+            
+        }
+
+
+        return true;
+    }
+
+    public string GetTransitionBetweenProfiles(int a, int b)
+    {
+        int length = GetBinaryRepresentation(a).Length;
+        string result = String.Empty;
+        for (int i = 0; i < n; i++)
+        {
+            if (((1 << i) & a) != 0)
+            {
+                result = '1' + result;
+            }
+            if (((1 << i) & b) != 0)
+            {
+                result = '2' + result;
+            }
+            if (((1 << i) & a) == 0 && ((1 << i) & b) == 0)
+            {
+                result = "34" + result;
+                i++;
+            }
+            
+        }
+
+        return result;
+    }
+
+    public bool IsProfileFinal(int a)
+    {
+        int numberOfEmptyRows = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (((1 << i) & a) != 0)
+            {
+                if (numberOfEmptyRows % 2 == 1)
+                {
+                    return false;
+                }
+
+                numberOfEmptyRows = 0;
+
+            }
+            else
+            {
+                numberOfEmptyRows++;
+            }
+        }
+        if (numberOfEmptyRows % 2 == 1)
+        {
+            return false;
+        }
+
+
+        return true;
+    }
+
+    public string GetBinaryRepresentation(int i)
+    {
+        string binary = Convert.ToString(i, 2);
+        int additionalZeroes = n - binary.Length;
+        binary = new String('0', (additionalZeroes >= 0) ? additionalZeroes : 0) + binary;
+        return binary;
+    }
+
+    public void MarkPrevCells(int i, int j)
+    {
+        if (AlgorithmIsRunning)
+        {
+            return;
+        }
+        prevCells.Clear();
+        if (curCell == (i, j))
+        {
+            curCell = (-1, -1);
+            return;
+        }
+
+        curCell = (i, j);
+        for (int k = 0; k < (1 << n); k++)
+        {
+            if (IsProfileTransitionPossible2(k, i))
+            {
+                prevCells.Add((k, j - 1));
+            }
+        }
+    }
+    
+
+
+
+}
